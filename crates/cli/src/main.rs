@@ -28,8 +28,14 @@ fn main() -> Result<()> {
                 (Some(_), None) => bail!("Must provide WIT world when providing WIT file"),
                 (Some(wit), Some(world)) => exports::process_exports(&js, wit, world),
             }?;
+            let imports = match (&opts.wit, &opts.wit_world) {
+                (None, None) => Ok(vec![]),
+                (None, Some(_)) => Ok(vec![]),
+                (Some(_), None) => bail!("Must provide WIT world when providing WIT file"),
+                (Some(wit), Some(world)) => exports::process_imports(&js, wit, world),
+            }?;
             let wasm = if opts.dynamic {
-                dynamic_generator::generate(&js, exports, opts.no_source_compression)?
+                dynamic_generator::generate(&js, exports, imports, opts.no_source_compression)?
             } else {
                 static_generator::generate(&js, exports, opts.no_source_compression)?
             };

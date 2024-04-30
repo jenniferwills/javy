@@ -1,8 +1,8 @@
-use crate::{exports::Export, js::JS};
+use crate::{exports::Export, exports::Import, js::JS};
 
 use super::transform::{self, SourceCodeSection};
 use anyhow::Result;
-use walrus::{DataKind, FunctionBuilder, Module, ValType};
+use walrus::{DataKind, FunctionBuilder, ImportKind, Module, ValType};
 
 // Run the calling code with the `dump_wat` feature enabled to print the WAT to stdout
 //
@@ -67,6 +67,7 @@ use walrus::{DataKind, FunctionBuilder, Module, ValType};
 pub fn generate(
     js: &JS,
     exported_functions: Vec<Export>,
+    imported_functions: Vec<Import>,
     no_source_compression: bool,
 ) -> Result<Vec<u8>> {
     let mut module = Module::with_config(transform::module_config());
@@ -137,7 +138,7 @@ pub fn generate(
             let js_export_len: i32 = js_export_bytes.len().try_into().unwrap();
             let fn_name_data = module.data.add(DataKind::Passive, js_export_bytes.to_vec());
 
-            let mut export_fn = FunctionBuilder::new(&mut module.types, &[], &[]);
+            let mut export_fn: FunctionBuilder = FunctionBuilder::new(&mut module.types, &[], &[]);
             export_fn
                 .func_body()
                 // Copy bytecode.
@@ -170,6 +171,15 @@ pub fn generate(
                 .call(invoke_fn);
             let export_fn = export_fn.finish(vec![], &mut module.funcs);
             module.exports.add(&export.wit, export_fn);
+        }
+    }
+
+    if !imported_functions.is_empty() {
+        let invoke_type = module.types.add(&[], &[]);
+        for import in imported_functions {
+            // For each JS function import, add an import that copies the name of the function into memory and invokes it.
+
+            module.add_import_func("host", &import.wit, invoke_type);
         }
     }
 

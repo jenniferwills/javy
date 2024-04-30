@@ -8,6 +8,9 @@ pub struct Export {
     pub wit: String,
     pub js: String,
 }
+pub struct Import {
+    pub wit: String,
+}
 
 pub fn process_exports(js: &JS, wit: &Path, wit_world: &str) -> Result<Vec<Export>> {
     let js_exports = js.exports()?;
@@ -25,6 +28,15 @@ pub fn process_exports(js: &JS, wit: &Path, wit_world: &str) -> Result<Vec<Expor
             }
         })
         .collect::<Result<Vec<Export>>>()
+}
+pub fn process_imports(js: &JS, wit: &Path, wit_world: &str) -> Result<Vec<Import>> {
+    parse_wit_imports(wit, wit_world)?
+        .into_iter()
+        .map(|wit_import| {
+            let import = wit_import.from_case(Case::Kebab).to_case(Case::Camel);
+            Ok(Import { wit: wit_import })
+        })
+        .collect::<Result<Vec<Import>>>()
 }
 
 fn parse_wit_exports(wit: &Path, wit_world: &str) -> Result<Vec<String>> {
@@ -45,4 +57,23 @@ fn parse_wit_exports(wit: &Path, wit_world: &str) -> Result<Vec<String>> {
     }
 
     exports
+}
+fn parse_wit_imports(wit: &Path, wit_world: &str) -> Result<Vec<String>> {
+    // Configure wit-parser to not require semicolons but only if the relevant
+    // environment variable is not already set.
+    const SEMICOLONS_OPTIONAL_ENV_VAR: &str = "WIT_REQUIRE_SEMICOLONS";
+    let semicolons_env_var_already_set = env::var(SEMICOLONS_OPTIONAL_ENV_VAR).is_ok();
+    if !semicolons_env_var_already_set {
+        env::set_var(SEMICOLONS_OPTIONAL_ENV_VAR, "0");
+    }
+
+    let imports = wit::parse_imports(wit, wit_world);
+
+    // If we set the environment variable to not require semicolons, remove
+    // that environment variable now that we no longer need it set.
+    if !semicolons_env_var_already_set {
+        env::remove_var(SEMICOLONS_OPTIONAL_ENV_VAR);
+    }
+
+    imports
 }
